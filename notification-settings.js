@@ -20,6 +20,7 @@
   document.getElementById('settings').innerHTML = E3HelperI18n.template`
     <header class="page-header"><span class="eyebrow">E3 HELPER</span><h1>通知設定</h1><p>選擇你需要的提醒，讓課程資訊在適合的時間出現。</p></header>
     <p id="delivery-error" class="notice error-notice" role="alert" hidden></p>
+    <div id="all-sites-setting"></div>
     <form id="form">
       <section class="card"><div class="setting-row"><div><h2 id="desktop-label">桌面通知</h2><p id="desktop-hint">在電腦的通知中心顯示提醒，點擊即可開啟 E3。</p></div><label class="switch"><input id="desktop" type="checkbox" role="switch" aria-labelledby="desktop-label" aria-describedby="desktop-hint"><span aria-hidden="true"></span></label></div>
       <p id="permission" class="permission" aria-live="polite" hidden><span class="dot" aria-hidden="true"></span><span id="permission-text"></span></p>
@@ -45,6 +46,7 @@
     </form>
     <section class="card history"><div class="section-heading"><h2>最近通知</h2><p>最近送出的 50 則桌面通知。</p></div><ol id="history-list" class="history-list"></ol><p id="history-empty" class="hint" hidden>尚無通知紀錄</p></section>
     <p class="footnote">瀏覽器需保持開啟；電腦休眠可能延後通知。新資料依 E3 同步週期更新。</p>`;
+  await globalThis.E3AllSitesSetting?.mount(document.getElementById('all-sites-setting'));
   const data = await E3NotificationAPI.get(['notificationSettings', 'notificationDeliveryError', 'notificationLog']);
   const saved = data.notificationSettings || {};
   const settings = { desktop: true, mode: 'instant', time: '20:00', reminders: [24, 1], ...saved };

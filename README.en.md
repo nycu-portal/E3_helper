@@ -29,7 +29,7 @@ Chrome 93 is the minimum supported version; use a current stable browser. Instal
 3. Enable **Developer mode**, select **Load unpacked**, and choose the folder containing `manifest.json`.
 4. Open an E3 webpage and click the floating **E3 Helper** button.
 
-After updating the source, reload the extension and refresh open webpages. Fresh installs automatically load the sidebar on https://e3.nycu.edu.tw/, https://e3p.nycu.edu.tw/ https://timetable.nycu.edu.tw/ and https://portal.nycu.edu.tw/ without changing browser site access settings; other websites and tabs do not load the sidebar or expose their page content to it.
+After updating the source, reload the extension and refresh open webpages. Fresh installs automatically load the sidebar on https://e3.nycu.edu.tw/, https://e3p.nycu.edu.tw/ https://timetable.nycu.edu.tw/ and https://portal.nycu.edu.tw/ without changing browser site access settings; other websites and tabs do not load the sidebar unless you opt into the all-websites floating button.
 
 ## Getting started and language
 
@@ -134,3 +134,7 @@ Contributions through [Issues](https://github.com/NYCU-Chung/portal_e3_helper/is
 ## License
 
 [MIT License](LICENSE)
+
+### Floating button on all websites (Chrome 96+)
+
+Off by default. Go to More → Settings → Open website display settings, then enable “Show the floating button on all websites” on the extension options page. This switch saves immediately and requests optional HTTP/HTTPS site access when first enabled. Declining access leaves it off. Google and other ordinary websites can then show the sidebar with cached assignments and due-date countdowns, without automatically opening E3. Updating assignments still requires E3 login and sync. Other sites receive only a CSS-isolated 46px launcher. Clicking creates an extension-origin iframe; coursework and API keys stay outside the host page DOM. Turning the option off destroys the launcher and private frame, stops future injection, and revokes broad optional host access; the default campus sites remain available. Chrome internal pages and the Chrome Web Store are restricted.

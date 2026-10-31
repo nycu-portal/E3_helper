@@ -34,7 +34,7 @@
 3. 啟用「開發人員模式」，選擇「載入未封裝項目」，指定含有 `manifest.json` 的資料夾。
 4. 開啟 E3、timetable 或 portal 網頁，點擊浮動的「E3小助手」按鈕。
 
-更新原始碼後，請重新載入擴充功能並重新整理已開啟的網頁。新安裝預設僅在 https://e3.nycu.edu.tw/、https://e3p.nycu.edu.tw/、https://timetable.nycu.edu.tw/ 與 https://portal.nycu.edu.tw/ 顯示側欄，不必手動調整瀏覽器網站存取；其他網站不載入側欄或讀取頁面內容。
+更新原始碼後，請重新載入擴充功能並重新整理已開啟的網頁。新安裝預設僅在 https://e3.nycu.edu.tw/、https://e3p.nycu.edu.tw/、https://timetable.nycu.edu.tw/ 與 https://portal.nycu.edu.tw/ 顯示側欄，不必手動調整瀏覽器網站存取；未啟用全網站浮動按鈕時，其他網站不載入側欄或讀取頁面內容。
 
 ## 首次使用、語言與外觀
 
@@ -148,3 +148,9 @@ node tests/notification-extension-smoke.cjs
 ## 授權
 
 [MIT License](LICENSE)
+
+### 在所有網站顯示浮動按鈕（Chrome 96 以上）
+
+預設關閉，維持只在 E3、課綱網站與校務入口顯示。到「更多 → 設定 → 開啟網站顯示設定」，在擴充功能選項頁開啟「在所有網站顯示浮動按鈕」；也可直接從擴充功能管理頁開啟選項。此開關立即儲存；首次開啟時，Chrome 會詢問一般 HTTP／HTTPS 網站的存取權，拒絕後仍保持關閉。
+
+開啟後，在 Google 等一般網站也能點擊 E3 Helper 按鈕，查看已同步的作業與截止倒數；開啟側欄不會自動打開 E3。作業仍需有效的 E3 登入與同步才能更新。一般網站只載入封閉 Shadow DOM 中的 46px 按鈕；點開才建立擴充功能來源的隔離面板，網站 JavaScript 無法讀取其中的作業或 API Key。關閉後移除按鈕與整個面板、取消後續注入，並撤銷全網站選用權限；E3 等原本支援的網站不受影響。Chrome 新分頁、設定頁與 Chrome Web Store 等受限制頁面不支援。

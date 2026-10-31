@@ -7,7 +7,19 @@ const isE3Site = location.protocol === 'https:' &&
   ['e3.nycu.edu.tw', 'e3p.nycu.edu.tw'].includes(location.hostname);
 const isTimetableSite = location.protocol === 'https:' && location.hostname === 'timetable.nycu.edu.tw';
 const isPortalSite = location.protocol === 'https:' && location.hostname === 'portal.nycu.edu.tw';
-if (!isE3Site && !isTimetableSite && !isPortalSite) return;
+const defaultSite = isE3Site || isTimetableSite || isPortalSite;
+const isolatedPanel = globalThis.E3HelperAllSitesFrame === true && location.protocol === 'chrome-extension:' && location.pathname === '/all-sites-panel.html';
+if (!defaultSite) {
+  if (!isolatedPanel) return;
+  chrome.storage.local.get('showOnAllSites').then(data => {
+    if (data.showOnAllSites === true) startHelper();
+  });
+  return;
+}
+startHelper();
+function startHelper() {
+if (globalThis.E3HelperInitialized) return;
+globalThis.E3HelperInitialized = true;
 const uiText = E3HelperI18n.text;
 const ui = E3HelperI18n.template;
 
@@ -2759,7 +2771,7 @@ function createSidebar() {
         // 顯示歡迎訊息
         const pdfListContainer = document.querySelector('.e3-helper-pdf-list');
         if (pdfListContainer) {
-          const isOnE3 = window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw');
+          const isOnE3 = isE3Site;
           pdfListContainer.innerHTML = ui`
             <div class="e3-helper-welcome-message">
               <h3> 歡迎使用檔案下載</h3>
@@ -3422,7 +3434,7 @@ function createSidebar() {
         toggleBtn.classList.add('hidden');
 
         // 自動同步：檢查距離上次同步的時間
-        chrome.storage.local.get(['lastSyncTime'], (result) => {
+        if (defaultSite) chrome.storage.local.get(['lastSyncTime'], (result) => {
           const lastSyncTime = result.lastSyncTime || 0;
           const now = Date.now();
           const timeSinceLastSync = now - lastSyncTime;
@@ -3438,7 +3450,7 @@ function createSidebar() {
         });
 
         // 啟動定時器：每 5 分鐘檢查一次
-        if (!autoSyncIntervalId) {
+        if (defaultSite && !autoSyncIntervalId) {
           console.log('E3 Helper: 啟動自動同步定時器（每 5 分鐘）');
           autoSyncIntervalId = setInterval(() => {
             console.log('E3 Helper: 定時器觸發，檢查是否需要同步...');
@@ -3585,6 +3597,7 @@ function performAutoSync() {
 
 // 監聽作業頁面，繳交後自動刷新
 function setupAssignmentPageListener() {
+  if (!isE3Site) return;
   // 防止重複設置
   if (assignmentPageListenerSetup) {
     console.log('E3 Helper: 作業頁面監聽器已設置，跳過重複設置');
@@ -3797,6 +3810,7 @@ function createSettingsModal() {
       </div>
       <div class="e3-helper-log-modal-body">
         <div class="e3-helper-settings-container">
+          <div id="e3-helper-all-sites-setting"></div>
           <div class="e3-helper-settings-section">
             <h3 class="e3-helper-settings-title">介面語言</h3>
             <label class="e3-helper-setting-label-block" for="e3-helper-language">Language</label>
@@ -3956,6 +3970,7 @@ function createSettingsModal() {
     settingsModal.classList.remove('show');
   });
 
+  globalThis.E3AllSitesSetting?.mount(document.getElementById('e3-helper-all-sites-setting'));
   document.getElementById('e3-helper-notification-settings').addEventListener('click', async () => {
     // A page left open across an extension reload can no longer reach the background script.
     try {
@@ -4263,7 +4278,7 @@ function showWelcomeMessage() {
   const listContainer = document.querySelector('.e3-helper-assignment-list');
   if (!listContainer) return;
 
-  const isOnE3 = window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw');
+  const isOnE3 = isE3Site;
 
   const welcomeHTML = ui`
     <div class="e3-helper-welcome-message">
@@ -5095,7 +5110,7 @@ async function loadAllCourseGrades(forceRefresh = false) {
   const statsContainer = document.querySelector('.e3-helper-grade-stats');
   statsContainer.innerHTML = uiText('<div class="e3-helper-loading">載入課程成績中...</div>');
 
-  const isOnE3 = window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw');
+  const isOnE3 = isE3Site;
 
   try {
     // 先嘗試從 storage 載入
@@ -5126,7 +5141,7 @@ async function loadAllCourseGrades(forceRefresh = false) {
         allCourses = storage.courses;
       } else {
         // 如果不在 E3 網站上，無法載入課程列表
-        if (!window.location.hostname.includes('e3.nycu.edu.tw') && !window.location.hostname.includes('e3p.nycu.edu.tw')) {
+        if (!isE3Site) {
           statsContainer.innerHTML = ui`
             <div class="e3-helper-no-assignments">
               無法載入成績資料<br>
@@ -5796,7 +5811,7 @@ async function displayCourseGradeList() {
     // 檢查是否有課程資料
     const storage = await chrome.storage.local.get(['courses']);
     const hasCourses = (storage.courses && storage.courses.length > 0) || allCourses.length > 0;
-    const isOnE3 = window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw');
+    const isOnE3 = isE3Site;
 
     if (hasCourses) {
       // 有課程但沒有成績資料，提示用戶載入成績
@@ -6008,7 +6023,7 @@ async function loadCourseSelector() {
     if (storage.courses && storage.courses.length > 0) {
       allCourses = storage.courses;
       console.log(`E3 Helper: 從 storage 載入了 ${allCourses.length} 個課程`);
-    } else if (window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw')) {
+    } else if (isE3Site) {
       // 只在 E3 網站上嘗試載入
       await loadCourseList();
     }
@@ -6063,8 +6078,7 @@ async function loadCourseSelector() {
 
 // 檢查是否在 E3 網站
 function isOnE3Site() {
-  return window.location.hostname.includes('e3.nycu.edu.tw') ||
-         window.location.hostname.includes('e3p.nycu.edu.tw');
+  return location.protocol === 'https:' && ['e3.nycu.edu.tw', 'e3p.nycu.edu.tw'].includes(location.hostname);
 }
 
 // 載入所有課程的公告
@@ -10824,6 +10838,14 @@ async function checkVersionUpdate() {
 // 初始化
 async function init() {
   await E3HelperI18n.ready;
+  if (isolatedPanel) {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes.assignments) {
+        mergeSavedAssignments(changes.assignments.newValue || []);
+        updateSidebarContent();
+      }
+    });
+  }
   bindExamSuggestionEvents();
   // 檢查 extension context 是否有效
   if (!isExtensionContextValid()) {
@@ -10882,7 +10904,7 @@ async function init() {
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', () => {
       // 只在 E3 網站上收集作業資訊
-      if (window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw')) {
+      if (isE3Site) {
         collectAssignmentInfo();
       }
       createSidebar();
@@ -10895,7 +10917,7 @@ async function init() {
     });
   } else {
     // DOM 已經載入完成
-    if (window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw')) {
+    if (isE3Site) {
       collectAssignmentInfo();
     }
     createSidebar();
@@ -10909,17 +10931,22 @@ async function init() {
 
   // 也在頁面載入完成後再收集一次（處理延遲載入的內容）
   // 只在 E3 網站上執行
-  if (window.location.hostname.includes('e3.nycu.edu.tw') || window.location.hostname.includes('e3p.nycu.edu.tw')) {
+  if (isE3Site) {
     window.addEventListener('load', () => {
       setTimeout(collectAssignmentInfo, 500);
     });
+  }
+
+  if (isolatedPanel) {
+    document.querySelector('.e3-helper-sidebar')?.classList.add('expanded');
+    document.getElementById('e3-helper-close-btn')?.focus();
   }
 
   // 每 5 分鐘更新一次同步狀態顯示
   setInterval(updateSyncStatus, 300000);
 
   // 偵測版本更新並彈 What's New（modal append 到 body，不依賴 sidebar 已建好）
-  checkVersionUpdate();
+  if (defaultSite) checkVersionUpdate();
 }
 
 // 監聽來自 background script 的訊息
@@ -11004,4 +11031,5 @@ if (isE3Site) {
   }
 }
 
+}
 })();
