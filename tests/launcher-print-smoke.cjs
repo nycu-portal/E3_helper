@@ -89,8 +89,8 @@ const path = require('node:path');
     assert.ok(['flex', 'inline-flex'].includes(compact.display), 'launcher must remain flex-based despite host styling');
     assert.ok(compact.width >= 40 && compact.width <= 50, 'launcher stays icon-sized');
     assert.equal(compact.right, 1280, 'launcher remains at the right edge');
-    assert.equal(compact.background, 'rgb(41, 39, 35)', 'warm black launcher');
-    assert.equal(compact.iconColor, 'rgb(217, 163, 108)', 'amber icon');
+    assert.equal(compact.background, 'rgb(179, 38, 30)', 'original red launcher');
+    assert.equal(compact.iconColor, 'rgb(255, 255, 255)', 'white icon');
     assert.equal(compact.textDisplay, 'none', 'label is initially folded');
 
     await launcher.hover();

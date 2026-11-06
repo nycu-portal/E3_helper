@@ -1526,9 +1526,9 @@ style.textContent += `
   /* Shared theme. Light by default; settings can switch to dark or follow the system. */
   ${E3_THEME_ROOTS} {
     ${E3_LIGHT_TOKENS}
-    --e3-launcher-bg: #292723;
-    --e3-on-launcher: #f6f3ee;
-    --e3-launcher-icon: #d9a36c;
+    --e3-launcher-bg: #b3261e;
+    --e3-on-launcher: #ffffff;
+    --e3-launcher-icon: #ffffff;
     --e3-radius: 8px;
     --e3-space-1: 4px;
     --e3-space-2: 8px;
