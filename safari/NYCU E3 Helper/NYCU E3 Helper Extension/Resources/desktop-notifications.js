@@ -2,7 +2,16 @@
 (function () {
   const native = !chrome.notifications?.create && chrome.runtime.getURL('').startsWith('safari-web-extension:') && Boolean(chrome.runtime.sendNativeMessage) && Boolean(chrome.runtime.getManifest?.().permissions?.includes('nativeMessaging'));
   async function request(action, payload = {}) {
-    const response = await chrome.runtime.sendNativeMessage('com.yoyo1112.nycu-e3-helper', { action, ...payload });
+    const response = await new Promise((resolve, reject) => {
+      const callback = response => {
+        const error = chrome.runtime.lastError;
+        if (error) reject(new Error(error.message));
+        else resolve(response);
+      };
+      // Safari versions can expose callback-only or Promise-based messaging.
+      const pending = chrome.runtime.sendNativeMessage('com.yoyo1112.nycu-e3-helper', { action, ...payload }, callback);
+      if (pending?.then) pending.then(resolve, reject);
+    });
     if (!response?.success) throw new Error(response?.error || 'Native notification service unavailable');
     return response;
   }

@@ -3,12 +3,21 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync(require('node:path').join(__dirname, '../desktop-notifications.js'), 'utf8');
-function load(response = { success: true, permission: 'granted' }, permissions = ['nativeMessaging']) {
+function load(response = { success: true, permission: 'granted' }, permissions = ['nativeMessaging'], callbackOnly = false, transportError = '') {
   const messages = [];
   const context = vm.createContext({ URL, chrome: { runtime: {
     getURL: p => `safari-web-extension://test/${p}`,
     getManifest: () => ({ permissions }),
-    sendNativeMessage: async (app, value) => { messages.push({ app, value }); return response; }
+    sendNativeMessage: (app, value, callback) => {
+      messages.push({ app, value });
+      if (!callbackOnly) return Promise.resolve(response);
+      queueMicrotask(() => {
+        context.chrome.runtime.lastError = transportError ? { message: transportError } : undefined;
+        callback(response);
+        delete context.chrome.runtime.lastError;
+      });
+      return undefined;
+    }
   } } });
   vm.runInContext(source, context);
   return { adapter: context.E3DesktopNotifications, messages };
@@ -47,4 +56,16 @@ test('native notification transport rejects unsafe links before dispatch', async
     await assert.rejects(adapter.create('manual', { title: 'Reminder', message: '' }, url), /Invalid notification URL/);
   }
   assert.equal(messages.length, 0);
+});
+
+test('callback-only Safari native messaging supports status, authorization and delivery', async () => {
+  const { adapter, messages } = load(undefined, undefined, true);
+  assert.equal(await adapter.getPermissionLevel(), 'granted');
+  assert.equal(await adapter.authorize(), 'granted');
+  await adapter.create('callback', { title: 'Reminder', message: 'Due' }, '#');
+  assert.deepEqual(messages.map(item => item.value.action), ['notificationStatus', 'authorizeNotifications', 'showNotification']);
+});
+test('callback-only Safari messaging surfaces runtime.lastError', async () => {
+  const { adapter } = load(undefined, undefined, true, 'Native host disconnected');
+  await assert.rejects(adapter.authorize(), /Native host disconnected/);
 });

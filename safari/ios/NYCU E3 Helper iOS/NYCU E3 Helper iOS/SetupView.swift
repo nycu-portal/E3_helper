@@ -26,9 +26,9 @@ struct SetupView: View {
                 }
                 Section("隱私與選用功能") {
                     Text("本工具使用 Safari 既有的 E3 登入狀態，不要求校務密碼。課程資料與設定儲存在擴充功能本機儲存空間。")
-                    Text("翻譯會將文字傳送至 Google Translate；AI 摘要會將內容傳送至 OpenAI，需自行設定 API Key。啟用這些功能時，需允許對應服務的網站存取。")
+                    Text("翻譯會將文字傳送至 Google Translate；AI 摘要會將內容傳送至所選的 Google Gemini 或 OpenAI 服務，需自行設定 API Key。啟用這些功能時，需允許對應服務的網站存取。")
                     Text("這是非官方輔助工具；作業要求與截止時間請以 E3 原文為準。")
-                    if let url = URL(string: "https://github.com/Yoyo1112/portal_e3_helper/issues") {
+                    if let url = URL(string: "https://github.com/nycu-portal/E3_helper/issues") {
                         Link("使用支援與問題回報", destination: url)
                             .frame(minHeight: 44)
                     }

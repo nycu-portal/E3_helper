@@ -53,3 +53,15 @@ xcodebuild -project 'safari/NYCU E3 Helper/NYCU E3 Helper.xcodeproj' \
 提交前須用自己的開發者設定完成簽署，並在 Safari 實測 E3 登入／同步、下載、Google Translate、OpenAI、通知橫幅與點擊。這個功能分支不包含商店發布或上傳。
 
 上架流程與待完成項目見 `APP_STORE.md`。
+
+### Safari runtime release checklist
+
+Keep these checks separate from Node tests, Chromium fixtures and unsigned Xcode builds. They remain pending until exercised in Safari with the required signing and E3 session:
+
+- [ ] iPad Simulator: install and launch the app, enable its Safari extension, open/close the sidebar and drag the launcher/resize with touch.
+- [ ] Safari on macOS and iPad: authenticate, sync coursework, open announcement/message previews and click individual download links.
+- [ ] macOS Safari: request native notification authorization, deliver a test notification and verify its click target; also check denied authorization and delivery errors.
+- [ ] Verify Google Translate and the selected Google Gemini or OpenAI provider with a user-supplied key.
+- [ ] Before public release, repeat touch checks on a physical iPad. Hardware access is not a source-merge prerequisite.
+
+Callback-only native-messaging regressions cover status, authorization, delivery and `runtime.lastError`; they do not establish real Safari or macOS notification delivery.
