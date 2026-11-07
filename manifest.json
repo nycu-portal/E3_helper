@@ -31,6 +31,7 @@
         "jszip.min.js",
         "i18n.js",
         "exam-detection.js",
+        "all-sites-setting.js",
         "content.js"
       ],
       "run_at": "document_end"
@@ -56,5 +57,24 @@
   "options_ui": {
     "page": "notification-settings.html",
     "open_in_tab": true
-  }
+  },
+  "optional_permissions": [
+    "scripting"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "all-sites-panel.html"
+      ],
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "use_dynamic_url": true
+    }
+  ]
 }

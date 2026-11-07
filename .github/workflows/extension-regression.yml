@@ -3,7 +3,11 @@ name: Extension regression checks
 on:
   pull_request:
     paths:
-      - 'content.js'
+      - '*.js'
+      - '*.html'
+      - '*.css'
+      - 'manifest.json'
+      - '_locales/**'
       - 'tests/**'
       - '.github/workflows/extension-regression.yml'
   workflow_dispatch:
@@ -32,3 +36,9 @@ jobs:
       - name: Existing UI regression
         if: success() || failure()
         run: node tests/ui-smoke.cjs
+      - name: All-sites callback-only settings regression
+        if: success() || failure()
+        run: node tests/all-sites-ui-smoke.cjs
+      - name: All-sites extension privacy and permission regression
+        if: success() || failure()
+        run: node tests/all-sites-extension-smoke.cjs

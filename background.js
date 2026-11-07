@@ -1,4 +1,4 @@
-importScripts('i18n.js', 'notification-api.js', 'desktop-notifications.js', 'notification-engine.js', 'exam-detection.js');
+importScripts('i18n.js', 'notification-api.js', 'desktop-notifications.js', 'notification-engine.js', 'exam-detection.js', 'all-sites.js');
 const uiText = E3HelperI18n.text;
 const ui = E3HelperI18n.template;
 const E3_ALLOWED_HOSTS = new Set(['e3.nycu.edu.tw', 'e3p.nycu.edu.tw']);

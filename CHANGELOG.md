@@ -3,6 +3,12 @@
 ## [Unreleased]
 
 ### Fixed
+- Isolate the optional all-websites launcher from host CSS and hide it when printing. Create private coursework/settings only on click in an extension-origin iframe; destroy it and revoke broad optional host access on opt-out.
+
+### Added
+- Add an opt-in floating button on all websites for Chrome (off by default). Request optional site access only when enabled, show synced coursework on Google and other ordinary pages, and hide/unregister it when disabled.
+
+### Fixed
 - Keep pending exam cards and counts in sync between Coursework and Today's digest, including hidden tabs after accepting or dismissing a suggestion.
 - Retain overdue coursework edited during sync and apply delayed course-detail responses to the current saved record.
 - Save local coursework field changes through the shared queue, preserving concurrent exam acceptance and exam-to-assignment conversions during sync.

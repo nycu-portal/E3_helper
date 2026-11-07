@@ -2,6 +2,12 @@
 (function () {
   'use strict';
   const english = {
+  "預設關閉。請在擴充功能設定頁開啟並允許網站存取權。": "Off by default. Enable it in the extension settings page and allow website access.",
+  "開啟網站顯示設定": "Open website display settings",
+  "此開關立即儲存。": "This switch saves immediately.",
+  "在所有網站顯示浮動按鈕": "Show the floating button on all websites",
+  "預設關閉。開啟後可在 Google 等一般網站查看已同步的作業；Chrome 內部頁面不支援。": "Off by default. View synced assignments on Google and other websites. Chrome internal pages are not supported.",
+  "未取得網站存取權，設定保持關閉。": "Website access was not granted. The setting remains off.",
   "時間未知": "Unknown time",
   "AI 請求逾時，請重試": "AI request timed out. Please retry.",
   "OpenAI 串流中斷，請重試": "OpenAI stream interrupted. Please retry.",
