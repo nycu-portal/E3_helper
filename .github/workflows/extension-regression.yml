@@ -1,0 +1,44 @@
+name: Extension regression checks
+
+on:
+  pull_request:
+    paths:
+      - '*.js'
+      - '*.html'
+      - '*.css'
+      - 'manifest.json'
+      - '_locales/**'
+      - 'tests/**'
+      - '.github/workflows/extension-regression.yml'
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out PR
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright
+        run: |
+          npm install --no-save --no-package-lock playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: JavaScript syntax
+        run: node --check content.js
+      - name: Unit tests
+        run: node --test tests/*.test.cjs
+      - name: Launcher and printing regression
+        run: node tests/launcher-print-smoke.cjs
+      - name: Existing UI regression
+        if: success() || failure()
+        run: node tests/ui-smoke.cjs
+      - name: All-sites callback-only settings regression
+        if: success() || failure()
+        run: node tests/all-sites-ui-smoke.cjs
+      - name: All-sites extension privacy and permission regression
+        if: success() || failure()
+        run: node tests/all-sites-extension-smoke.cjs

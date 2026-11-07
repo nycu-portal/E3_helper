@@ -9,7 +9,7 @@ const path = require('node:path');
       const data = {}, listeners = [];
       window.grantAccess = false;
       window.chrome = {
-        runtime: { getManifest: () => ({ optional_permissions: ['scripting'] }), sendMessage: async () => ({ success: true }) },
+        runtime: { getManifest: () => ({ optional_permissions: ['scripting'] }), sendMessage: (message, callback) => { queueMicrotask(() => callback({ success: true })); } },
         permissions: { request: async () => window.grantAccess },
         storage: { onChanged: { addListener: fn => listeners.push(fn) }, local: {
           get: async () => data,
@@ -29,6 +29,7 @@ const path = require('node:path');
     await page.evaluate(() => { window.grantAccess = true; });
     await input.check(); await page.waitForFunction(() => !document.querySelector('#settings input').disabled);
     assert.equal(await page.evaluate(async () => (await chrome.storage.local.get()).showOnAllSites), true);
+    assert.match(await page.locator('[role=status]').textContent(), /設定已儲存|Settings saved/);
     await input.uncheck(); await page.waitForFunction(() => !document.querySelector('#settings input').disabled);
     assert.equal(await page.evaluate(async () => (await chrome.storage.local.get()).showOnAllSites), false);
     console.log('PASS: default off, denied grant stays off, explicit enable and disable');

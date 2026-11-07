@@ -35,7 +35,13 @@
             throw new Error(t('未取得網站存取權，設定保持關閉。'));
           }
           await chrome.storage.local.set({ showOnAllSites: enabled });
-          const response = await chrome.runtime.sendMessage({ action: 'applyAllSitesSetting' });
+          const response = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ action: 'applyAllSitesSetting' }, response => {
+              const error = chrome.runtime.lastError;
+              if (error) reject(new Error(error.message));
+              else resolve(response);
+            });
+          });
           if (!response?.success) throw new Error(response?.error || t('儲存失敗，請再試一次。'));
           status.textContent = t('設定已儲存！');
         } catch (error) {

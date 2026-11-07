@@ -1540,6 +1540,7 @@ style.textContent += `
     ${E3_LIGHT_TOKENS}
     --e3-launcher-bg: #b3261e;
     --e3-on-launcher: #ffffff;
+    --e3-launcher-icon: #ffffff;
     --e3-radius: 8px;
     --e3-space-1: 4px;
     --e3-space-2: 8px;
@@ -1655,17 +1656,116 @@ style.textContent += `
   .e3-helper-edit-assignment.e3-helper-secondary:hover { color: var(--e3-text) !important; }
   .e3-helper-delete-assignment.e3-helper-secondary:hover { color: var(--e3-danger) !important; }
 
-  /* Floating entry */
-  .e3-helper-sidebar-toggle { background: var(--e3-launcher-bg); color: var(--e3-on-launcher); border: 1px solid var(--e3-border-strong); border-right: 0; border-radius: 12px 0 0 12px; box-shadow: -2px 2px 12px rgb(var(--e3-shadow) / 12%); padding: 10px 12px; min-height: 44px; }
-  .e3-helper-sidebar-toggle:hover, .e3-helper-sidebar-toggle:active { background: var(--e3-launcher-bg); transform: none; box-shadow: -2px 2px 12px rgb(var(--e3-shadow) / 12%); }
-  .e3-helper-sidebar-toggle,
-  .e3-helper-sidebar-toggle .e3-helper-toggle-text,
-  .e3-helper-sidebar-toggle .e3-helper-toggle-icon,
-  .e3-helper-sidebar-toggle .e3-helper-icon { color: var(--e3-on-launcher) !important; }
-  .e3-helper-sidebar-toggle .e3-helper-icon { stroke: var(--e3-on-launcher) !important; }
-  .e3-helper-toggle-icon { display: flex; align-items: center; }
-  .e3-helper-toggle-text { font-size: 13px; font-weight: 600; }
-  .e3-helper-toggle-badge { background: var(--e3-danger); color: var(--e3-on-danger); border-color: var(--e3-bg); box-shadow: none; }
+  /* Floating entry: keep host-page button rules from stretching the launcher. */
+  .e3-helper-sidebar-toggle {
+    position: fixed !important;
+    left: auto !important;
+    right: 0 !important;
+    bottom: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    flex: none !important;
+    box-sizing: border-box !important;
+    width: 46px !important;
+    min-width: 46px !important;
+    max-width: 46px !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+    background: var(--e3-launcher-bg) !important;
+    color: var(--e3-on-launcher) !important;
+    border: 1px solid #75685c !important;
+    border-right: 0 !important;
+    border-radius: 12px 0 0 12px !important;
+    box-shadow: -2px 2px 12px rgb(var(--e3-shadow) / 12%) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+    appearance: none !important;
+  }
+  /* Touch browsers may retain :hover after tapping. Only fine pointers expand on hover. */
+  @media (hover: hover) and (pointer: fine) {
+    .e3-helper-sidebar-toggle:hover {
+      width: 136px !important;
+      min-width: 136px !important;
+      max-width: 136px !important;
+      justify-content: flex-start !important;
+      padding: 0 10px !important;
+      gap: 8px !important;
+    }
+    .e3-helper-sidebar-toggle:hover .e3-helper-toggle-text {
+      display: inline !important;
+    }
+  }
+  /* Keep the label available when navigating with the keyboard. */
+  .e3-helper-sidebar-toggle:focus-visible {
+    width: 136px !important;
+    min-width: 136px !important;
+    max-width: 136px !important;
+    justify-content: flex-start !important;
+    padding: 0 10px !important;
+    gap: 8px !important;
+  }
+  .e3-helper-sidebar-toggle:active {
+    background: var(--e3-launcher-bg) !important;
+    transform: none !important;
+  }
+  .e3-helper-sidebar-toggle .e3-helper-toggle-icon {
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto !important;
+    color: var(--e3-launcher-icon) !important;
+  }
+  .e3-helper-sidebar-toggle .e3-helper-toggle-icon .e3-helper-icon {
+    color: var(--e3-launcher-icon) !important;
+    stroke: var(--e3-launcher-icon) !important;
+  }
+  .e3-helper-sidebar-toggle .e3-helper-toggle-text {
+    display: none !important;
+    color: var(--e3-on-launcher) !important;
+    font-size: 13px !important;
+    font-weight: 600 !important;
+  }
+  .e3-helper-sidebar-toggle:focus-visible .e3-helper-toggle-text {
+    display: inline !important;
+  }
+  /* Touch can retain :focus-visible after the close button restores focus. */
+  @media (hover: none) and (pointer: coarse) {
+    .e3-helper-sidebar-toggle:focus-visible {
+      width: 46px !important;
+      min-width: 46px !important;
+      max-width: 46px !important;
+      justify-content: center !important;
+      padding: 0 !important;
+      gap: 0 !important;
+    }
+    .e3-helper-sidebar-toggle:focus-visible .e3-helper-toggle-text {
+      display: none !important;
+    }
+  }
+  .e3-helper-toggle-badge {
+    background: var(--e3-danger);
+    color: var(--e3-on-danger);
+    border-color: var(--e3-bg);
+    box-shadow: none;
+  }
+  @media print {
+    .e3-helper-sidebar,
+    .e3-helper-sidebar-toggle,
+    .e3-helper-toast,
+    .e3-helper-log-modal,
+    #e3-helper-add-assignment-modal,
+    #e3-helper-changelog-modal,
+    #e3-helper-syllabus-modal {
+      display: none !important;
+    }
+  }
 
   /* Messages, modals */
   .e3-helper-welcome-message, .e3-helper-setting-tip, .e3-helper-login-warning { background: var(--e3-surface); color: var(--e3-text); border: 0; border-radius: 12px; box-shadow: none; }
@@ -3738,6 +3838,9 @@ function createSettingsModal() {
             <div class="e3-helper-settings-description">
               選擇 Gemini 或 OpenAI 生成公告與信件摘要與今日總覽；翻譯則使用 Google Translate 免費服務。
             </div>
+            <p class="e3-helper-setting-tip">
+              <a id="e3-helper-ai-setup-guide" href="https://github.com/nycu-portal/E3_helper/blob/main/docs/features/ai-api-setup.md" target="_blank" rel="noopener noreferrer">API Key 設定教學：免費額度、費用與隱私</a>
+            </p>
 
             <div class="e3-helper-setting-item">
               <label class="e3-helper-setting-label">
