@@ -31,6 +31,7 @@
         "jszip.min.js",
         "i18n.js",
         "exam-detection.js",
+        "report-detection.js",
         "all-sites-setting.js",
         "content.js"
       ],

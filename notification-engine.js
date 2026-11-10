@@ -95,8 +95,8 @@
       if (hours === undefined) continue;
       await add(deadlineId(assignment, hours), {
         type: 'basic', iconUrl: chrome.runtime.getURL('128.png'),
-        title: E3HelperI18n.text(assignment.kind === 'exam' ? '考試即將開始' : '作業即將截止'),
-        message: `${assignment.name}\n${assignment.course || ''}\n${new Date(assignment.deadline).toLocaleString(E3HelperI18n.language)}`
+        title: E3HelperI18n.text(assignment.kind === 'exam' ? '考試即將開始' : assignment.kind === 'report' ? (assignment.reportType === 'presentation' ? '報告即將開始' : '報告即將截止') : '作業即將截止'),
+        message: `${assignment.name}\n${assignment.course || ''}\n${assignment.kind === 'report' && assignment.timeKnown === 'date-only' ? new Date(assignment.deadline).toLocaleDateString(E3HelperI18n.language) + ' · ' + E3HelperI18n.text('時間未定') : new Date(assignment.deadline).toLocaleString(E3HelperI18n.language)}`
       }, assignment.url, now, { eventId: assignment.eventId, timestamp: Number(assignment.deadline), hours });
     }
     data = await E3NotificationAPI.get(['notificationQueue', 'notificationHistory', 'notificationLinks', 'notificationDeliveryError', 'notificationLog']);

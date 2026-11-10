@@ -8,6 +8,8 @@ Bring NYCU E3 assignments, courses, announcements, messages and materials togeth
 
 This guide describes the 2.3.0 source in this repository. The store release may not include the latest changes.
 
+Coursework includes assignments, exams and reports. Scan course schedules/announcements or read syllabus files, then confirm suggestions before adding. Presentation and submission milestones remain separate. See [report behavior and validation](docs/features/coursework-reports.md).
+
 ## Features
 
 - A resizable sidebar with a draggable floating button, with a light theme by default and optional dark or follow-the-system themes.

@@ -2153,6 +2153,7 @@ async function convertAssignmentToExam(assignment, examType, deadline = assignme
     assignment.endTime = null;
   }
   Object.assign(assignment, { kind: 'exam', examType, deadline });
+  delete assignment.reportKey; delete assignment.reportType;
   if (converting) {
     assignment.manualStatus = 'pending';
     await saveAssignmentStatus(assignment.eventId, 'pending');
@@ -2274,6 +2275,17 @@ async function toggleAssignmentStatus(eventId) {
 
 // 格式化倒數時間
 // 考試沒有繳交狀態：開始前倒數，開始後顯示進行中或已結束。
+function formatCourseworkCountdown(assignment) {
+  if (assignment.kind === 'report' && assignment.timeKnown === 'date-only') {
+    return { text: uiText('時間未定，以日期提醒'), status: assignment.deadline < Date.now() ? 'overdue' : 'normal' };
+  }
+  if (assignment.kind === 'report' && assignment.reportType === 'presentation' && assignment.deadline <= Date.now()) {
+    const end = Number(assignment.endTime) || assignment.deadline + 2 * 60 * 60 * 1000;
+    return { text: uiText(Date.now() < end ? '報告進行中' : '已結束'), status: Date.now() < end ? 'urgent' : 'overdue' };
+  }
+  return E3ExamDetection.isExam(assignment) ? formatExamCountdown(assignment) : formatCountdown(assignment.deadline);
+}
+
 function formatExamCountdown(exam) {
   const now = Date.now();
   if (exam.deadline > now) return formatCountdown(exam.deadline);
@@ -2475,7 +2487,7 @@ function createSidebar() {
     const assignmentToolbar = document.createElement('div');
     assignmentToolbar.className = 'e3-helper-section-toolbar';
     assignmentToolbar.innerHTML = uiText('<h2>課業</h2>');
-    addAssignmentBtn.textContent = uiText('新增作業或考試');
+    addAssignmentBtn.textContent = uiText('新增作業、考試或報告');
     assignmentToolbar.appendChild(addAssignmentBtn);
     assignmentContent.appendChild(assignmentToolbar);
 
@@ -3216,6 +3228,13 @@ function createSidebar() {
               <select id="e3-helper-assignment-kind" style="width: 100%; padding: 10px 12px; border-radius: 6px; box-sizing: border-box;" class="e3-helper-regular-text e3-helper-surface">
                 <option value="assignment">作業</option>
                 <option value="exam">考試</option>
+                <option value="report">報告</option>
+              </select>
+            </div>
+            <div id="e3-helper-report-type-field" style="flex: 1; min-width: 0; display: none;">
+              <label for="e3-helper-report-type">報告種類</label>
+              <select id="e3-helper-report-type" class="e3-helper-regular-text e3-helper-surface" style="width: 100%; padding: 10px;">
+                <option value="presentation">發表</option><option value="submission">繳交</option>
               </select>
             </div>
             <div id="e3-helper-exam-type-field" style="flex: 1; min-width: 0; display: none;">
@@ -3262,6 +3281,7 @@ function createSidebar() {
     const courseSelect = document.getElementById('e3-helper-assignment-course-select');
     const courseCustomInput = document.getElementById('e3-helper-assignment-course-custom');
 
+    document.getElementById('e3-helper-report-type').addEventListener('change', () => setAssignmentModalKind('report'));
     document.getElementById('e3-helper-assignment-kind').addEventListener('change', (e) => {
       setAssignmentModalKind(e.target.value);
     });
@@ -3339,7 +3359,10 @@ function createSidebar() {
       const date = document.getElementById('e3-helper-assignment-date').value;
       const time = document.getElementById('e3-helper-assignment-time').value;
       const editId = document.getElementById('e3-helper-edit-assignment-id').value;
-      const isExamEntry = document.getElementById('e3-helper-assignment-kind').value === 'exam';
+      const kind = document.getElementById('e3-helper-assignment-kind').value;
+      const isExamEntry = kind === 'exam';
+      const isReportEntry = kind === 'report';
+      const reportType = document.getElementById('e3-helper-report-type').value;
       const examType = document.getElementById('e3-helper-exam-type').value;
 
       if (!name || !date || !time) {
@@ -3358,8 +3381,14 @@ function createSidebar() {
           assignment.course = course;
           if (isExamEntry) {
             await convertAssignmentToExam(assignment, examType, deadlineTimestamp);
+          } else if (isReportEntry) {
+            if (assignment.kind !== 'report' || assignment.reportType !== reportType || assignment.deadline !== deadlineTimestamp) { assignment.timeKnown = 'exact'; assignment.endTime = null; }
+            if (assignment.reportType !== reportType) delete assignment.reportKey;
+            Object.assign(assignment, { kind: 'report', reportType, deadline: deadlineTimestamp });
+            delete assignment.examKey; delete assignment.examType;
           } else {
             assignment.deadline = deadlineTimestamp;
+            delete assignment.reportType; delete assignment.reportKey; delete assignment.timeKnown; delete assignment.endTime; delete assignment.examKey;
             delete assignment.kind;
             delete assignment.examType;
           }
@@ -3392,6 +3421,7 @@ function createSidebar() {
           manualStatus: 'pending',
           isManual: true
         };
+        if (isReportEntry) Object.assign(newAssignment, { kind: 'report', reportType, timeKnown: 'exact' });
         allAssignments.push(newAssignment);
       }
 
@@ -3405,7 +3435,7 @@ function createSidebar() {
       document.getElementById('e3-helper-add-assignment-modal').style.display = 'none';
 
       // 顯示成功訊息
-      const message = isExamEntry ? (editId ? '考試已更新' : '考試已新增') : (editId ? '作業已更新' : '作業已新增');
+      const message = isReportEntry ? (editId ? '報告已更新' : '報告已新增') : isExamEntry ? (editId ? '考試已更新' : '考試已新增') : (editId ? '作業已更新' : '作業已新增');
       showTemporaryMessage(uiText(message));
     });
   }
@@ -4314,11 +4344,13 @@ function showWelcomeMessage() {
 // 切換新增視窗的作業／考試欄位文字。
 function setAssignmentModalKind(kind) {
   const isExamEntry = kind === 'exam';
-  document.getElementById('e3-helper-assignment-kind').value = isExamEntry ? 'exam' : 'assignment';
+  const isReportEntry = kind === 'report';
+  document.getElementById('e3-helper-assignment-kind').value = isReportEntry ? 'report' : isExamEntry ? 'exam' : 'assignment';
+  document.getElementById('e3-helper-report-type-field').style.display = isReportEntry ? 'block' : 'none';
   document.getElementById('e3-helper-exam-type-field').style.display = isExamEntry ? 'block' : 'none';
-  document.getElementById('e3-helper-assignment-name-label').textContent = uiText(isExamEntry ? '考試名稱 *' : '作業名稱 *');
-  document.getElementById('e3-helper-assignment-date-label').textContent = uiText(isExamEntry ? '考試日期 *' : '截止日期 *');
-  document.getElementById('e3-helper-assignment-time-label').textContent = uiText(isExamEntry ? '開始時間 *' : '截止時間 *');
+  document.getElementById('e3-helper-assignment-name-label').textContent = uiText(isReportEntry ? '報告名稱 *' : isExamEntry ? '考試名稱 *' : '作業名稱 *');
+  document.getElementById('e3-helper-assignment-date-label').textContent = uiText(isReportEntry ? '報告日期 *' : isExamEntry ? '考試日期 *' : '截止日期 *');
+  document.getElementById('e3-helper-assignment-time-label').textContent = uiText(isReportEntry ? (document.getElementById('e3-helper-report-type').value === 'presentation' ? '報告發表時間 *' : '報告繳交時間 *') : isExamEntry ? '開始時間 *' : '截止時間 *');
   const nameInput = document.getElementById('e3-helper-assignment-name');
   nameInput.placeholder = uiText(isExamEntry ? '例：期中考' : '例：期末專題報告');
   const timeInput = document.getElementById('e3-helper-assignment-time');
@@ -4376,9 +4408,10 @@ async function updateSidebarContent() {
 
   // 類型篩選：全部／作業／考試。
   const examCount = sortedAssignments.filter(assignment => E3ExamDetection.isExam(assignment)).length;
-  const kindFilter = renderAssignmentKindFilter({ all: sortedAssignments.length, assignment: sortedAssignments.length - examCount, exam: examCount });
+  const reportCount = sortedAssignments.filter(a => a.kind === 'report').length;
+  const kindFilter = renderAssignmentKindFilter({ all: sortedAssignments.length, assignment: sortedAssignments.length - examCount - reportCount, exam: examCount, report: reportCount });
   const visibleAssignments = sortedAssignments.filter(assignment =>
-    assignmentKindFilter === 'all' || (assignmentKindFilter === 'exam') === E3ExamDetection.isExam(assignment));
+    assignmentKindFilter === 'all' || assignmentKindFilter === (assignment.kind || 'assignment'));
   if (visibleAssignments.length === 0) {
     listContainer.innerHTML = examPanel + kindFilter + uiText('<div class="e3-helper-no-assignments">此篩選條件下沒有項目</div>');
     return;
@@ -4386,14 +4419,14 @@ async function updateSidebarContent() {
 
   listContainer.innerHTML = examPanel + kindFilter + visibleAssignments.map(assignment => {
     const isExamItem = E3ExamDetection.isExam(assignment);
-    const countdown = isExamItem ? formatExamCountdown(assignment) : formatCountdown(assignment.deadline);
+    const countdown = formatCourseworkCountdown(assignment);
     const deadlineDate = new Date(assignment.deadline);
 
     // 格式化日期 - 包含星期和更詳細的資訊
     const weekdays = [uiText('週日'), uiText('週一'), uiText('週二'), uiText('週三'), uiText('週四'), uiText('週五'), uiText('週六')];
     const weekday = weekdays[deadlineDate.getDay()];
     const clock = `${deadlineDate.getHours().toString().padStart(2, '0')}:${deadlineDate.getMinutes().toString().padStart(2, '0')}`;
-    const dateStr = `${deadlineDate.getMonth() + 1}/${deadlineDate.getDate()} (${weekday}) ${isExamItem && assignment.timeKnown === 'date-only' ? uiText('時間未定') : clock}`;
+    const dateStr = `${deadlineDate.getMonth() + 1}/${deadlineDate.getDate()} (${weekday}) ${(isExamItem || assignment.kind === 'report') && assignment.timeKnown === 'date-only' ? uiText('時間未定') : clock}`;
 
     // 使用手動標記的狀態
     const manualStatus = assignment.manualStatus || 'pending';
@@ -4409,17 +4442,18 @@ async function updateSidebarContent() {
     }
 
     // 狀態切換按鈕
-    let statusToggleText = uiText('標記為已繳交');
+    let statusToggleText = uiText(assignment.kind === 'report' ? '標記為已完成' : '標記為已繳交');
     let statusToggleClass = '';
     if (manualStatus === 'submitted') {
-      statusToggleText = uiText('✓ 已繳交');
+      statusToggleText = uiText(assignment.kind === 'report' ? '✓ 已完成' : '✓ 已繳交');
       statusToggleClass = 'submitted';
     }
 
     // 緊急標籤
-    const urgentBadge = isUrgent ? uiText(isExamItem ? '<span class="e3-helper-urgent-badge">24 小時內開始</span>' : '<span class="e3-helper-urgent-badge">24 小時內到期</span>') : '';
-    const examBadge = isExamItem ? `<span class="e3-helper-exam-badge ${examBadgeClass(assignment.examType)}">${escapeHtml(E3ExamDetection.examName(assignment.examType, '', E3HelperI18n.language))}</span>` : '';
-    const examNote = isExamItem ? [
+    const urgentBadge = isUrgent ? uiText((isExamItem || assignment.kind === 'report' && assignment.reportType === 'presentation') ? '<span class="e3-helper-urgent-badge">24 小時內開始</span>' : '<span class="e3-helper-urgent-badge">24 小時內到期</span>') : '';
+    const examBadge = assignment.kind === 'report' ? `<span class="e3-helper-exam-badge">${escapeHtml(uiText(assignment.reportType === 'presentation' ? '發表' : '繳交'))}</span>` : isExamItem ? `<span class="e3-helper-exam-badge ${examBadgeClass(assignment.examType)}">${escapeHtml(E3ExamDetection.examName(assignment.examType, '', E3HelperI18n.language))}</span>` : '';
+    const examNote = (isExamItem || assignment.kind === 'report') ? [
+      assignment.kind === 'report' && assignment.group ? escapeHtml(assignment.group) : '',
       assignment.timeKnown === 'class-slot' ? uiText('時間依上課時段推估') : '',
       assignment.location ? ui`地點：${escapeHtml(assignment.location)}` : '',
       assignment.scope ? ui`範圍：${escapeHtml(assignment.scope)}` : ''
@@ -4434,7 +4468,7 @@ async function updateSidebarContent() {
     `;
 
     return `
-      <a href="${hasValidUrl ? escapeHtml(assignment.url) : 'javascript:void(0);'}" target="${hasValidUrl ? '_blank' : '_self'}" class="e3-helper-body-text e3-helper-assignment-item ${statusClass}" data-event-id="${assignment.eventId}" ${!hasValidUrl && !isExamItem ? 'data-need-fetch="true"' : ''} style="text-decoration: none; cursor: pointer;">
+      <a href="${hasValidUrl ? escapeHtml(assignment.url) : 'javascript:void(0);'}" target="${hasValidUrl ? '_blank' : '_self'}" class="e3-helper-body-text e3-helper-assignment-item ${statusClass}" data-event-id="${assignment.eventId}" ${!hasValidUrl && !isExamItem && assignment.kind !== 'report' ? 'data-need-fetch="true"' : ''} style="text-decoration: none; cursor: pointer;">
         <div class="e3-helper-assignment-heading">
           <div class="e3-helper-assignment-name">${examBadge}${escapeHtml(assignment.name)}${urgentBadge}</div>
           <div class="e3-helper-assignment-course">${escapeHtml(assignment.course || uiText('(未知課程)'))}</div>
@@ -4451,9 +4485,6 @@ async function updateSidebarContent() {
       </a>
     `;
   }).join('');
-
-  // 檢查並創建24小時內到期作業的通知
-  await checkUrgentAssignments(sortedAssignments, now);
 
   // 為需要獲取 URL 的作業添加點擊事件
   listContainer.querySelectorAll('.e3-helper-assignment-item[data-need-fetch="true"]').forEach(link => {
@@ -4534,13 +4565,16 @@ async function updateSidebarContent() {
 
       // 填入表單
       const kindSelect = document.getElementById('e3-helper-assignment-kind');
-      setAssignmentModalKind(E3ExamDetection.isExam(assignment) ? 'exam' : 'assignment');
+      setAssignmentModalKind(assignment.kind || 'assignment');
+      document.getElementById('e3-helper-report-type').value = assignment.reportType || 'presentation';
+      setAssignmentModalKind(assignment.kind || 'assignment');
+      if (assignment.kind === 'report') modalTitle.textContent = uiText('編輯報告');
       if (E3ExamDetection.isExam(assignment)) {
         document.getElementById('e3-helper-exam-type').value = assignment.examType || 'other';
         modalTitle.textContent = uiText(' 編輯考試');
       }
       // 同步作業不能改成考試；手動項目可切換類型。
-      kindSelect.disabled = !(assignment.isManual || eventId.startsWith('manual-') || E3ExamDetection.isExam(assignment));
+      kindSelect.disabled = false;
       document.getElementById('e3-helper-assignment-name').value = assignment.name;
 
       // 填入課程名稱
@@ -4608,6 +4642,9 @@ async function updateSidebarContent() {
       }
     });
   });
+  // Bind controls before awaiting notification storage; concurrent renders must
+  // never attach a second set of handlers to a newer list.
+  await checkUrgentAssignments(sortedAssignments, now);
 }
 
 // 檢查24小時內到期的緊急作業並創建通知
@@ -4650,7 +4687,9 @@ async function checkUrgentAssignments(assignments, currentTime) {
         eventId: assignment.eventId,
         type: 'urgent',
         title: assignment.name,
-        message: E3ExamDetection.isExam(assignment)
+        message: assignment.kind === 'report'
+          ? `${uiText(assignment.reportType === 'presentation' ? '報告即將開始' : '報告即將截止')} · ${assignment.timeKnown === 'date-only' ? uiText('時間未定') : timeText}`
+          : E3ExamDetection.isExam(assignment)
           ? ui`${timeText}開始 - ${assignment.course || uiText('(未知課程)')}`
           : ui`${timeText}截止 - ${assignment.course || uiText('(未知課程)')}`,
         url: assignment.url,
@@ -4697,7 +4736,7 @@ function updateCountdowns() {
     const assignment = allAssignments.find(a => a.eventId === eventId);
 
     if (assignment) {
-      const countdown = E3ExamDetection.isExam(assignment) ? formatExamCountdown(assignment) : formatCountdown(assignment.deadline);
+      const countdown = formatCourseworkCountdown(assignment);
       const countdownEl = item.querySelector('.e3-helper-assignment-countdown');
 
       if (countdownEl) {
@@ -7118,7 +7157,7 @@ let assignmentKindFilter = 'all';
 
 function renderAssignmentKindFilter(counts) {
   const option = (kind, label) => `<button type="button" class="e3-helper-kind-btn ${assignmentKindFilter === kind ? 'active' : ''}" data-kind-filter="${kind}" aria-pressed="${assignmentKindFilter === kind}">${uiText(label)} (${counts[kind]})</button>`;
-  return `<div class="e3-helper-filter-row e3-helper-kind-filter" role="group" aria-label="${escapeHtml(uiText('類型：'))}"><div class="e3-helper-filter-label">${uiText('類型：')}</div>${option('all', '全部')}${option('assignment', '作業')}${option('exam', '考試')}</div>`;
+  return `<div class="e3-helper-filter-row e3-helper-kind-filter" role="group" aria-label="${escapeHtml(uiText('類型：'))}"><div class="e3-helper-filter-label">${uiText('類型：')}</div>${option('all', '全部')}${option('assignment', '作業')}${option('exam', '考試')}${option('report', '報告')}</div>`;
 }
 const EXAM_SOURCE_LABELS = { timetable: '課綱進度表', announcement: '公告', message: '信件', syllabusFile: '教師 syllabus', manual: '手動加入的考試' };
 
@@ -7127,8 +7166,8 @@ function examBadgeClass(examType) {
 }
 
 async function loadExamSuggestions() {
-  const storage = await chrome.storage.local.get(['examSuggestions']);
-  examSuggestions = Array.isArray(storage.examSuggestions) ? storage.examSuggestions : [];
+  const storage = await chrome.storage.local.get(['examSuggestions', 'reportSuggestions']);
+  examSuggestions = [...(Array.isArray(storage.examSuggestions) ? storage.examSuggestions : []), ...(Array.isArray(storage.reportSuggestions) ? storage.reportSuggestions : [])];
   return examSuggestions;
 }
 
@@ -7160,10 +7199,12 @@ function formatExamCandidateTime(candidate) {
 
 function renderExamSuggestionCard(suggestion, index) {
   // 依來源優先序預選，其他來源的日期一併列出供比對。
+  const isReport = suggestion.kind === 'report';
   const preferred = E3ExamDetection.preferredCandidate(suggestion.candidates);
   const candidates = [preferred, ...suggestion.candidates.filter(candidate => candidate !== preferred)];
   const days = new Set(candidates.map(c => E3ExamDetection.dayKey(c.deadline)));
-  const confirmed = allAssignments.find(a => E3ExamDetection.isExam(a) && a.examKey === suggestion.id);
+  const confirmed = allAssignments.find(a => isReport ? a.reportKey === suggestion.id : E3ExamDetection.isExam(a) && a.examKey === suggestion.id);
+  const duplicate = isReport && !confirmed && E3ReportDetection.matchingAssignment(allAssignments, suggestion, preferred);
   const options = candidates.map((candidate, optionIndex) => {
     const source = uiText(EXAM_SOURCE_LABELS[candidate.source] || '其他考試來源');
     const url = safeExternalUrl(candidate.url);
@@ -7176,12 +7217,14 @@ function renderExamSuggestionCard(suggestion, index) {
   }).join('');
   const isUpdate = suggestion.state === 'update';
   return `<article class="e3-helper-exam-card" data-exam-suggestion="${escapeHtml(suggestion.id)}" data-exam-index="${index}">
-    <div class="e3-helper-regular-text e3-helper-body-text" style="font-weight: 600;"><span class="e3-helper-exam-badge ${examBadgeClass(suggestion.examType)}">${escapeHtml(E3ExamDetection.examName(suggestion.examType, '', E3HelperI18n.language))}</span> ${escapeHtml(suggestion.course || uiText('(未知課程)'))}</div>
+    <div class="e3-helper-regular-text e3-helper-body-text" style="font-weight: 600;"><span class="e3-helper-exam-badge ${examBadgeClass(suggestion.examType)}">${escapeHtml(isReport ? uiText(suggestion.reportType === 'presentation' ? '發表' : '繳交') : E3ExamDetection.examName(suggestion.examType, '', E3HelperI18n.language))}</span> ${escapeHtml(suggestion.course || uiText('(未知課程)'))}</div>
+    ${isReport ? `<strong>${escapeHtml(suggestion.name)}${suggestion.group ? ` · ${escapeHtml(suggestion.group)}` : ''}</strong>` : ''}
+    ${duplicate ? `<div class="e3-helper-exam-warning">${uiText('已有相同課業，加入將轉為報告。')}</div>` : ''}
     ${isUpdate && confirmed ? `<div class="e3-helper-exam-warning">${ui`已加入的日期是 ${escapeHtml(formatExamCandidateTime(confirmed))}，新來源顯示不同日期。`}</div>` : ''}
     ${!isUpdate && days.size > 1 ? `<div class="e3-helper-exam-warning">${uiText('來源日期不一致，請選擇正確日期。')}</div>` : ''}
     <fieldset><legend class="e3-helper-exam-note">${uiText('選擇日期')}</legend>${options}</fieldset>
     <div class="e3-helper-exam-actions">
-      <button type="button" class="e3-helper-primary" data-exam-action="accept">${uiText(isUpdate ? '更新日期' : '加入考試')}</button>
+      <button type="button" class="e3-helper-primary" data-exam-action="accept">${uiText(isUpdate ? '更新日期' : isReport ? (duplicate ? '轉為報告' : '加入報告') : '加入考試')}</button>
       <button type="button" class="e3-helper-secondary" data-exam-action="dismiss">${uiText(isUpdate ? '保持原日期' : '忽略')}</button>
     </div>
   </article>`;
@@ -7190,15 +7233,22 @@ function renderExamSuggestionCard(suggestion, index) {
 // 作業分頁顯示掃描工具；今日總覽只在有待確認項目時詢問。
 function renderExamSuggestionPanel(context) {
   const pending = examSuggestions.filter(s => s.state === 'new' || s.state === 'update');
-  const tools = ui`<div class="e3-helper-exam-tools"><span>考試：</span>
+  const tools = ui`<div class="e3-helper-exam-tools"><span>考試與報告：</span>
     <button type="button" class="e3-helper-exam-link" data-exam-action="scan" ${examScanInFlight ? 'disabled' : ''}>${examScanInFlight ? uiText('掃描中…') : uiText('掃描課綱與公告')}</button>
     <button type="button" class="e3-helper-exam-link" data-exam-action="syllabus">讀取 syllabus 檔案</button></div>`;
-  if (!pending.length) return context === 'assignments' ? tools : '';
-  return `${context === 'assignments' ? tools : ''}<section class="e3-helper-exam-panel" aria-label="${escapeHtml(uiText('考試待確認'))}">
-    <div class="e3-helper-exam-panel-head"><h4>${uiText('考試待確認')} (${pending.length})</h4>${pending.length > 1 ? `<button type="button" class="e3-helper-exam-link" data-exam-action="accept-all">${uiText('全部加入（使用預選日期）')}</button>` : ''}</div>
+  const todayReports = context === 'digest' ? renderTodayReports() : '';
+  if (!pending.length) return (context === 'assignments' ? tools : '') + todayReports;
+  return `${context === 'assignments' ? tools : ''}<section class="e3-helper-exam-panel" aria-label="${escapeHtml(uiText('考試與報告待確認'))}">
+    <div class="e3-helper-exam-panel-head"><h4>${uiText('考試與報告待確認')} (${pending.length})</h4>${pending.length > 1 ? `<button type="button" class="e3-helper-exam-link" data-exam-action="accept-all">${uiText('全部加入（使用預選日期）')}</button>` : ''}</div>
     ${pending.map((suggestion, index) => renderExamSuggestionCard(suggestion, `${context}-${index}`)).join('')}
-    <p class="e3-helper-exam-note" style="margin: 0;">${uiText('考試日期來自課綱進度表、公告、信件或 syllabus，加入前請確認。')}</p>
-  </section>`;
+    <p class="e3-helper-exam-note" style="margin: 0;">${uiText('考試與報告日期來自課綱進度表、公告、信件或 syllabus，加入前請確認。')}</p>
+  </section>${todayReports}`;
+}
+
+function renderTodayReports() {
+  const reports = allAssignments.filter(a => a.kind === 'report' && a.manualStatus !== 'submitted' && E3ExamDetection.dayKey(a.deadline) === E3ExamDetection.dayKey(Date.now()));
+  if (!reports.length) return '';
+  return `<section class="e3-helper-exam-panel"><h4>${uiText('今日報告')}</h4>${reports.map(a => `<div><span class="e3-helper-exam-badge">${uiText(a.reportType === 'presentation' ? '發表' : '繳交')}</span> ${escapeHtml(a.name)} · ${escapeHtml(a.course || '')}<br>${escapeHtml(formatExamCandidateTime(a))}</div>`).join('')}</section>`;
 }
 
 async function refreshExamViews() {
@@ -7215,13 +7265,13 @@ async function refreshExamViews() {
 // 一次加入所有待確認考試，各自使用預選（優先序最高）的日期。
 async function acceptAllExamSuggestions() {
   const pending = examSuggestions.filter(s => s.state === 'new' || s.state === 'update');
-  if (!pending.length || !confirm(ui`要加入 ${pending.length} 個考試嗎？每個都會使用預選的日期。`)) return;
+  if (!pending.length || !confirm(ui`要加入 ${pending.length} 個課業項目嗎？每個都會使用預選的日期。`)) return;
   for (const suggestion of pending) {
     const chosen = E3ExamDetection.preferredCandidate(suggestion.candidates);
     await sendExamMessage({ action: 'resolveExamSuggestion', id: suggestion.id, decision: 'accept',
       candidateIndex: suggestion.candidates.indexOf(chosen), fingerprint: E3ExamDetection.selectionFingerprint(suggestion.candidates) });
   }
-  showTemporaryMessage(uiText('考試已加入作業清單'));
+  showTemporaryMessage(uiText('課業已加入清單'));
   await refreshExamViews();
 }
 
@@ -7232,7 +7282,7 @@ async function resolveExamSuggestionFromCard(card, decision) {
   const chosen = suggestion.candidates[Number(checked?.value)] || E3ExamDetection.preferredCandidate(suggestion.candidates);
   await sendExamMessage({ action: 'resolveExamSuggestion', id: suggestion.id, decision,
     candidateIndex: suggestion.candidates.indexOf(chosen), fingerprint: E3ExamDetection.selectionFingerprint(suggestion.candidates) });
-  showTemporaryMessage(uiText(decision === 'accept' ? '考試已加入作業清單' : '已忽略此考試建議'));
+  showTemporaryMessage(uiText(decision === 'accept' ? '課業已加入清單' : '已忽略此課業建議'));
   await refreshExamViews();
 }
 
@@ -7264,20 +7314,20 @@ async function scanAnnouncementExams({ force = false } = {}) {
   const aiSettings = storage.aiSettings || {};
   const config = getAISummaryConfig(aiSettings);
   const useAI = Boolean(aiSettings.enabled && config.apiKey && config.model);
-  const mode = useAI ? 'ai' : 'regex';
+  const mode = `${E3ReportDetection.VERSION}:${useAI ? 'ai' : 'regex'}`;
   const cache = storage.examExtractionCache || {};
   const keyOf = item => `${item.type}:${item.id}`;
   const sourceKey = item => JSON.stringify([item.title, item.timestamp, item.url, item.courseId, item.courseName]);
   const items = [...allAnnouncements.map(item => ({ ...item, type: 'announcement' })), ...allMessages.map(item => ({ ...item, type: 'message' }))]
-    .filter(item => item.timestamp >= Date.now() - 45 * DAY && item.url && E3ExamDetection.hasExamKeyword(item.title))
+    .filter(item => item.timestamp >= Date.now() - 45 * DAY && item.url && (E3ExamDetection.hasExamKeyword(item.title) || E3ReportDetection.hasReportKeyword(item.title)))
     .sort((a, b) => b.timestamp - a.timestamp);
   const todo = items.filter(item => {
     const entry = cache[keyOf(item)];
-    return force || !entry || entry.sourceKey !== sourceKey(item) || Date.now() - entry.at >= DAY || (useAI && entry.mode !== 'ai');
+    return force || !entry || entry.sourceKey !== sourceKey(item) || Date.now() - entry.at >= DAY || entry.mode !== mode;
   }).sort((a, b) => {
     const priority = item => {
       const entry = cache[keyOf(item)];
-      return !entry || entry.sourceKey !== sourceKey(item) || (useAI && entry.mode !== 'ai') ? 0 : 1;
+      return !entry || entry.sourceKey !== sourceKey(item) || entry.mode !== mode ? 0 : 1;
     };
     // Read new/changed sources first, then rotate refreshes by oldest read.
     return priority(a) - priority(b) || (cache[keyOf(a)]?.at || 0) - (cache[keyOf(b)]?.at || 0);
@@ -7300,14 +7350,18 @@ async function scanAnnouncementExams({ force = false } = {}) {
       try {
         const records = readItems.map((item, index) => ({ source: index + 1, type: item.type, course: item.courseName || '', title: item.title || '',
           posted: E3ExamDetection.dayKey(item.timestamp), text: texts[index] }));
-        const prompt = E3ExamDetection.buildExtractionPrompt(records, { language: E3HelperI18n.language });
-        found = E3ExamDetection.parseExamExtraction(await callSummaryProvider(prompt, config, 2048), sources);
+        const prompt = E3ReportDetection.buildExtractionPrompt(records, { language: E3HelperI18n.language });
+        const response = await callSummaryProvider(prompt, config, 4096);
+        found = [...E3ExamDetection.parseExamExtraction(response, sources), ...E3ReportDetection.parseReportExtraction(response, sources)];
       } catch (error) {
         console.warn('E3 Helper: AI 考試判讀失敗，改用文字推測', error);
-        usedMode = 'regex';
+        usedMode = `${E3ReportDetection.VERSION}:regex`;
       }
     }
-    if (!found) found = E3ExamDetection.detectAnnouncementExams(readItems.map((item, index) => ({ ...item, text: texts[index] })), allCourses);
+    if (!found) {
+      const itemsWithText = readItems.map((item, index) => ({ ...item, text: texts[index] }));
+      found = [...E3ExamDetection.detectAnnouncementExams(itemsWithText, allCourses), ...E3ReportDetection.detectAnnouncementReports(itemsWithText, allCourses)];
+    }
     readItems.forEach(item => {
       cache[keyOf(item)] = { mode: usedMode, at: Date.now(), sourceKey: sourceKey(item), candidates: found.filter(candidate => candidate.url === item.url) };
     });
@@ -7335,8 +7389,8 @@ async function runExamScan({ force = true } = {}) {
     await refreshExamViews();
   }
   const pending = examSuggestions.filter(s => s.state === 'new' || s.state === 'update').length;
-  if (errors.length) showTemporaryMessage(ui`部分考試來源掃描失敗：${errors[0]}`, 'warning');
-  else showTemporaryMessage(pending ? `${uiText('待確認的考試數量：')}${pending}` : uiText('沒有找到新的考試'));
+  if (errors.length) showTemporaryMessage(ui`部分課業來源掃描失敗：${errors[0]}`, 'warning');
+  else showTemporaryMessage(pending ? `${uiText('待確認的課業數量：')}${pending}` : uiText('沒有找到新的考試或報告'));
 }
 
 // ---- 教師 syllabus（PDF／Word，逐檔同意交給 AI）----
@@ -7400,19 +7454,20 @@ async function readSyllabusFile(file, config) {
   let text;
   if (file.type === 'docx' && !config) {
     // 沒有 AI 時讀取 Word 檔中的週次表（日期＋考試字樣），不上傳任何內容。
-    return E3ExamDetection.detectScheduleTextExams(await extractDocxText(buffer), {
-      courseId: file.courseId, course: file.course, classTime: outline?.classTime, url: file.url, label: file.name, seenAt: Date.now() });
+    const text = await extractDocxText(buffer);
+    const course = { courseId: file.courseId, course: file.course, classTime: outline?.classTime, url: file.url, label: file.name, seenAt: Date.now() };
+    return [...E3ExamDetection.detectScheduleTextExams(text, course), ...E3ReportDetection.detectText(text, course, { source: 'syllabusFile', url: file.url, label: file.name, seenAt: Date.now() })];
   }
   if (file.type === 'docx') {
-    const prompt = E3ExamDetection.buildExtractionPrompt([{ ...record, text: await extractDocxText(buffer) }], { language: E3HelperI18n.language });
-    text = await callSummaryProvider(prompt, config, 2048);
+    const prompt = E3ReportDetection.buildExtractionPrompt([{ ...record, text: await extractDocxText(buffer) }], { language: E3HelperI18n.language });
+    text = await callSummaryProvider(prompt, config, 4096);
   } else {
-    const prompt = E3ExamDetection.buildExtractionPrompt([record], { language: E3HelperI18n.language, file: true });
+    const prompt = E3ReportDetection.buildExtractionPrompt([record], { language: E3HelperI18n.language, file: true });
     text = (await sendExamMessage({ action: 'callAIWithFile', provider: config.provider, apiKey: config.apiKey, model: config.model,
-      content: prompt, file: { name: file.name, mimeType: 'application/pdf', data: arrayBufferToBase64(buffer) } })).data;
+      content: prompt, maxOutputTokens: 4096, file: { name: file.name, mimeType: 'application/pdf', data: arrayBufferToBase64(buffer) } })).data;
   }
-  return E3ExamDetection.parseExamExtraction(text, [{ courseId: file.courseId, course: file.course, type: 'syllabusFile',
-    url: file.url, label: file.name, seenAt: Date.now() }]);
+  const sources = [{ courseId: file.courseId, course: file.course, classTime: outline?.classTime, type: 'syllabusFile', url: file.url, label: file.name, seenAt: Date.now() }];
+  return [...E3ExamDetection.parseExamExtraction(text, sources), ...E3ReportDetection.parseReportExtraction(text, sources)];
 }
 
 function closeSyllabusDialog() {
@@ -7434,7 +7489,7 @@ async function openSyllabusScan() {
   modal.id = 'e3-helper-syllabus-modal';
   modal.style.cssText = 'display: flex; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 10001; justify-content: center; align-items: center;';
   modal.innerHTML = ui`<div role="dialog" aria-modal="true" aria-labelledby="e3-helper-syllabus-title" style="border-radius: 12px; padding: 24px; width: 90%; max-width: 520px; max-height: 80vh; overflow: auto; box-sizing: border-box;" class="e3-helper-surface e3-helper-flat">
-    <h3 id="e3-helper-syllabus-title" style="margin: 0 0 12px;" class="e3-helper-heading-text e3-helper-body-text">從 syllabus 找考試</h3>
+    <h3 id="e3-helper-syllabus-title" style="margin: 0 0 12px;" class="e3-helper-heading-text e3-helper-body-text">從 syllabus 找考試與報告</h3>
     <div id="e3-helper-syllabus-body" class="e3-helper-small-text e3-helper-body-text">正在尋找課程中的 syllabus 檔案…</div>
   </div>`;
   modal.addEventListener('click', event => { if (event.target === modal) closeSyllabusDialog(); });
@@ -7451,12 +7506,12 @@ async function openSyllabusScan() {
     return;
   }
   const provider = config?.provider === 'gemini' ? 'Gemini' : 'OpenAI';
-  const notice = config ? ui`勾選的檔案會交給 ${provider} 讀取考試日期（Word 檔只送出文字）；內容可能包含課程資料。`
+  const notice = config ? ui`勾選的檔案會交給 ${provider} 讀取考試與報告日期（Word 檔只送出文字）；內容可能包含課程資料。`
     : uiText('未啟用 AI：只在本機讀取 Word 檔中的週次表，不會上傳。PDF 需要啟用 AI。');
   body.innerHTML = `<p style="margin: 0 0 10px;">${notice}</p>
     <fieldset style="display: grid; gap: 6px; margin: 0 0 12px; padding: 0; border: 0;">${files.map((file, index) => `<label style="display: flex; gap: 6px; align-items: flex-start; overflow-wrap: anywhere;">
-      <input type="checkbox" value="${index}" ${syllabusExamCache[file.url] ? '' : 'checked'}>
-      <span>${escapeHtml(file.name)}<br><span class="e3-helper-exam-note">${escapeHtml(file.course)}${syllabusExamCache[file.url] ? ` · ${uiText('已讀取過')}` : ''}</span></span></label>`).join('')}</fieldset>
+      <input type="checkbox" value="${index}" ${syllabusExamCache[file.url]?.version === E3ReportDetection.VERSION ? '' : 'checked'}>
+      <span>${escapeHtml(file.name)}<br><span class="e3-helper-exam-note">${escapeHtml(file.course)}${syllabusExamCache[file.url]?.version === E3ReportDetection.VERSION ? ` · ${uiText('已讀取過')}` : ''}</span></span></label>`).join('')}</fieldset>
     <div id="e3-helper-syllabus-status" class="e3-helper-exam-note" role="status" aria-live="polite"></div>
     <div class="e3-helper-exam-actions"><button type="button" class="e3-helper-primary" data-syllabus-read>${uiText(config ? '上傳並讀取' : '在本機讀取')}</button><button type="button" class="e3-helper-secondary" data-syllabus-close>${uiText('取消')}</button></div>`;
   body.querySelector('[data-syllabus-close]').addEventListener('click', closeSyllabusDialog);
@@ -7473,7 +7528,7 @@ async function openSyllabusScan() {
       try {
         const candidates = await readSyllabusFile(file, config);
         await sendExamMessage({ action: 'mergeExamCandidates', candidates, replace: [file.url] });
-        cache[file.url] = { at: Date.now(), count: candidates.length };
+        cache[file.url] = { version: E3ReportDetection.VERSION, at: Date.now(), count: candidates.length };
         found += candidates.length;
       } catch (error) {
         failures.push(`${file.name}: ${error.message}`);
@@ -7483,13 +7538,13 @@ async function openSyllabusScan() {
     closeSyllabusDialog();
     await refreshExamViews();
     if (failures.length) showTemporaryMessage(ui`部分檔案讀取失敗：${failures[0]}`, 'warning', 6000);
-    else showTemporaryMessage(ui`從 syllabus 找到 ${found} 個考試日期`);
+    else showTemporaryMessage(ui`從 syllabus 找到 ${found} 個考試或報告日期`);
   });
 }
 
 function bindExamSuggestionEvents() {
   chrome.storage.local.get(['assignmentKindFilter']).then(storage => {
-    if (['assignment', 'exam'].includes(storage.assignmentKindFilter)) assignmentKindFilter = storage.assignmentKindFilter;
+    if (['assignment', 'exam', 'report'].includes(storage.assignmentKindFilter)) assignmentKindFilter = storage.assignmentKindFilter;
   }).catch(() => {});
   document.addEventListener('click', event => {
     const kindButton = event.target?.closest?.('[data-kind-filter]');
@@ -7509,11 +7564,11 @@ function bindExamSuggestionEvents() {
       : action === 'syllabus' ? openSyllabusScan()
       : action === 'accept-all' ? acceptAllExamSuggestions()
         : resolveExamSuggestionFromCard(button.closest('[data-exam-suggestion]'), action === 'accept' ? 'accept' : 'dismiss');
-    run.catch(error => showTemporaryMessage(ui`考試功能失敗：${error.message}`, 'error'));
+    run.catch(error => showTemporaryMessage(ui`課業功能失敗：${error.message}`, 'error'));
   });
   // 背景掃描或其他分頁更新建議時同步顯示。
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.examSuggestions) refreshExamViews().catch(() => {});
+    if (area === 'local' && (changes.examSuggestions || changes.reportSuggestions || changes.assignments)) refreshExamViews().catch(() => {});
   });
 }
 
@@ -7597,7 +7652,7 @@ async function displayAnnouncements() {
   allItems.sort((a, b) => b.timestamp - a.timestamp);
 
   if (allItems.length === 0) {
-    announcementList.innerHTML = ui`
+    announcementList.innerHTML = `<div id="e3-helper-digest-exams">${renderExamSuggestionPanel('digest')}</div>` + ui`
       <div class="e3-helper-welcome-message">
         <h3> 沒有找到公告或信件</h3>
         <p>目前沒有任何課程公告或系統信件。</p>

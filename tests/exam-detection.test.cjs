@@ -155,7 +155,7 @@ function loadWorker(storage, fetchImpl) {
   const section = background.slice(background.indexOf('// ==================== 考試偵測'), background.indexOf('// ==================== 自動同步功能'));
   const readAIResponse = background.slice(background.indexOf('async function readAIResponse'), background.indexOf('\n}', background.indexOf('async function readAIResponse')) + 2);
   const context = vm.createContext({
-    console: { warn() {} }, URLSearchParams, E3ExamDetection: exams, Date,
+    console: { warn() {} }, URLSearchParams, E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'), Date,
     fetch: fetchImpl, fetchWithTimeout: (url, options) => fetchImpl(url, options),
     chrome: { storage: { local: {
       get: async keys => Object.fromEntries([].concat(keys).filter(key => key in storage).map(key => [key, structuredClone(storage[key])])),
@@ -294,7 +294,7 @@ test('two stale tabs accept exams without replacing each other or newly synced a
   const storage = { assignments: [{ eventId: 'synced', name: 'New synced assignment' }], examSuggestions: exams.mergeSuggestions([], candidates) };
   const worker = loadWorker(storage, () => { throw new Error('Unexpected fetch'); });
   function tab() {
-    const context = vm.createContext({ allAssignments: [], examSuggestions: structuredClone(storage.examSuggestions), E3ExamDetection: exams,
+    const context = vm.createContext({ allAssignments: [], examSuggestions: structuredClone(storage.examSuggestions), E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'),
       clearTimeout, saveAssignmentsTimeout: null, saveAssignmentsPending: false, assignmentSaveRevision: 0, assignmentSavesInFlight: 0, console,
       chrome: { storage: { local: { set: async update => Object.assign(storage, structuredClone(update)) } } },
       sendExamMessage: request => worker.resolveExamSuggestion(request.id, request.decision, request.candidateIndex, request.fingerprint),
@@ -333,7 +333,7 @@ test('announcement scans refresh edited, expired and forced sources and retry fa
   const item = { id: 'post', title: 'Final exam', courseId: '1', timestamp: Date.now(), url: 'https://e3p.nycu.edu.tw/post/1' };
   const storage = {};
   let text = 'Final exam 12/23 09:00', reads = 0, failed = false, lastMerge;
-  const context = vm.createContext({ Date, console, E3ExamDetection: exams, allAnnouncements: [item], allMessages: [], allCourses: [],
+  const context = vm.createContext({ Date, console, E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'), allAnnouncements: [item], allMessages: [], allCourses: [],
     chrome: { storage: { local: { get: async () => structuredClone(storage), set: async update => Object.assign(storage, structuredClone(update)) } } },
     getAISummaryConfig: () => ({}), fetchExamSourceText: async () => { reads++; if (failed) throw new Error('offline'); return text; },
     sendExamMessage: async request => { lastMerge = request; } });
@@ -383,7 +383,7 @@ test('a rescan reordering the same dates cannot accept the wrong radio option', 
   const candidates = [5, 12].map(day => ({ courseId: '1', course: 'Course', examType: 'final', deadline: at(2099, 11, day, 9), timeKnown: 'exact', source: 'syllabusFile', url: `pdf-${day}`, confidence: 'high' }));
   const storage = { assignments: [], examSuggestions: exams.mergeSuggestions([], candidates) };
   const worker = loadWorker(storage, () => {});
-  const context = vm.createContext({ examSuggestions: structuredClone(storage.examSuggestions), E3ExamDetection: exams,
+  const context = vm.createContext({ examSuggestions: structuredClone(storage.examSuggestions), E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'),
     sendExamMessage: request => {
       storage.examSuggestions[0].candidates.reverse();
       return worker.resolveExamSuggestion(request.id, request.decision, request.candidateIndex, request.fingerprint);
@@ -415,7 +415,7 @@ test('bounded exam scans advance through unread and least recently read posts', 
     class ScanDate extends Date { static now() { return clock; } }
     const items = Array.from({ length: 20 }, (_, i) => ({ id: String(i), title: 'Final exam', courseId: '1', timestamp: clock - i * 1000, url: `https://e3p.nycu.edu.tw/post/${i}` }));
     const storage = {}, reads = [];
-    const context = vm.createContext({ Date: ScanDate, console, E3ExamDetection: exams, allAnnouncements: items, allMessages: [], allCourses: [],
+    const context = vm.createContext({ Date: ScanDate, console, E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'), allAnnouncements: items, allMessages: [], allCourses: [],
       chrome: { storage: { local: { get: async () => structuredClone(storage), set: async update => Object.assign(storage, structuredClone(update)) } } },
       getAISummaryConfig: () => ({}), fetchExamSourceText: async item => { reads.push(item.id); return 'Final exam 12/23'; }, sendExamMessage: async () => {} });
     vm.runInContext(contentFunction('scanAnnouncementExams'), context);
@@ -517,7 +517,7 @@ test('exam view refresh preserves a pending deletion, including a save started d
   for (const duringRead of [false, true]) {
     const storage = { assignments: [{ eventId: 'deleted' }] };
     const context = vm.createContext({ allAssignments: [], saveAssignmentsTimeout: duringRead ? null : 1, saveAssignmentsPending: false,
-      assignmentSaveRevision: 0, assignmentSavesInFlight: 0, savedAssignments: [{ eventId: 'deleted' }], E3ExamDetection: exams,
+      assignmentSaveRevision: 0, assignmentSavesInFlight: 0, savedAssignments: [{ eventId: 'deleted' }], E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'),
       loadExamSuggestions: async () => {}, updateSidebarContent: async () => {}, document: { querySelector: () => null, getElementById: () => null },
       chrome: { storage: { local: { get: async () => {
         if (duringRead) vm.runInContext('assignmentSaveRevision++; saveAssignmentsTimeout = 1;', context);
@@ -571,7 +571,7 @@ test('editing exam names preserves unknown start times and class-slot durations'
 
 test('refreshing an older announcement keeps its complete evidence beyond 200 cached candidates', async () => {
   const items = Array.from({ length: 210 }, (_, i) => ({ id: String(i), title: 'Final exam', courseId: String(i), timestamp: Date.now() - i * 1000, url: 'post/' + i }));
-  const cache = Object.fromEntries(items.map(item => ['announcement:' + item.id, { mode: 'regex', at: Date.now(),
+  const cache = Object.fromEntries(items.map(item => ['announcement:' + item.id, { mode: '2:regex', at: Date.now(),
     sourceKey: JSON.stringify([item.title, item.timestamp, item.url, item.courseId, item.courseName]),
     candidates: [{ courseId: item.courseId, examType: 'final', deadline: at(2099, 11, 5), source: 'announcement', url: item.url }]
   }]));
@@ -579,7 +579,7 @@ test('refreshing an older announcement keeps its complete evidence beyond 200 ca
   cache['announcement:209'].at -= 86400001;
   const storage = { examExtractionCache: cache, examSuggestions: exams.mergeSuggestions([], Object.values(cache).flatMap(entry => entry.candidates)) };
   const worker = loadWorker(storage, () => {});
-  const context = vm.createContext({ Date, console, E3ExamDetection: exams, allAnnouncements: items, allMessages: [], allCourses: [],
+  const context = vm.createContext({ Date, console, E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'), allAnnouncements: items, allMessages: [], allCourses: [],
     chrome: worker.chrome, getAISummaryConfig: () => ({}), fetchExamSourceText: async () => 'Final exam 12/23',
     sendExamMessage: request => worker.mergeExamCandidates(request.candidates, request.replace) });
   vm.runInContext(contentFunction('scanAnnouncementExams'), context);
@@ -605,7 +605,7 @@ test('a pending local deletion preserves exams accepted by another tab', async (
   const timers = [];
   const context = vm.createContext({ allAssignments: [], savedAssignments: structuredClone(base), assignmentSaveQueue: Promise.resolve(),
     assignmentSaveRevision: 0, assignmentSavesInFlight: 0, saveAssignmentsTimeout: null, saveAssignmentsPending: false,
-    E3ExamDetection: exams, console: { log() {}, error(error) { throw error; } }, setTimeout: fn => { timers.push(fn); return 1; },
+    E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'), console: { log() {}, error(error) { throw error; } }, setTimeout: fn => { timers.push(fn); return 1; },
     clearTimeout() {}, refreshExamViews: async () => {},
     chrome: worker.chrome, sendExamMessage: async request => ({ success: true, assignments: await worker.saveAssignmentChanges(request.changes) }) });
   for (const name of ['mergeSavedAssignments', 'persistAssignmentChanges', 'saveAssignments']) {
@@ -657,7 +657,7 @@ test('local changes made during a queued save survive without overwriting remote
   const gate = new Promise(resolve => { release = resolve; });
   const waiting = new Promise(resolve => { entered = resolve; });
   const context = vm.createContext({ allAssignments: [{ ...base[0], name: 'New name' }], savedAssignments: structuredClone(base),
-    assignmentSaveQueue: Promise.resolve(), assignmentSavesInFlight: 0, E3ExamDetection: exams,
+    assignmentSaveQueue: Promise.resolve(), assignmentSavesInFlight: 0, E3ExamDetection: exams, E3ReportDetection: require('../report-detection.js'),
     sendExamMessage: async request => {
       const assignments = await worker.saveAssignmentChanges(request.changes);
       entered();
