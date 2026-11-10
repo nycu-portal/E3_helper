@@ -35,6 +35,7 @@ const path = require('node:path');
     const inject = async () => {
       await page.addScriptTag({ path: path.join(__dirname, '../i18n.js') });
       await page.addScriptTag({ path: path.join(__dirname, '../exam-detection.js') });
+      await page.addScriptTag({ path: path.join(__dirname, '../report-detection.js') });
       await page.addScriptTag({ path: path.join(__dirname, '../content.js') });
       await page.waitForSelector('.e3-helper-sidebar-toggle');
       await page.locator('.e3-helper-sidebar-toggle').click();

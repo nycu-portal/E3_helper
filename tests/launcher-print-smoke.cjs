@@ -62,6 +62,7 @@ const path = require('node:path');
     const root = path.join(__dirname, '..');
     await page.addScriptTag({ path: path.join(root, 'i18n.js') });
     await page.addScriptTag({ path: path.join(root, 'exam-detection.js') });
+    await page.addScriptTag({ path: path.join(root, 'report-detection.js') });
     await page.addScriptTag({ path: path.join(root, 'content.js') });
     };
     const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });

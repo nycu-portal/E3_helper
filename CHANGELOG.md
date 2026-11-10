@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Added
+- Add report coursework with separate presentation/submission milestones, shared schedule/announcement/syllabus scanning, confirmation, local Word reading and AI PDF reading, and conversion of matching E3 coursework.
+
+### Fixed
+- Bind coursework controls before awaiting notification storage to prevent duplicate completion handlers during concurrent list refreshes.
+
 ### Fixed
 - Isolate the optional all-websites launcher from host CSS and hide it when printing. Create private coursework/settings only on click in an extension-origin iframe; destroy it and revoke broad optional host access on opt-out.
 

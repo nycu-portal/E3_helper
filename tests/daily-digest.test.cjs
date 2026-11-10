@@ -24,7 +24,7 @@ function sharedWorker(storage) {
     remove: async keys => keys.forEach(key => { delete storage[key]; })
   };
   let listener;
-  const worker = vm.createContext({ console: { ...console, warn() {} },
+  const worker = vm.createContext({ allAssignments: [], E3ExamDetection: require('../exam-detection.js'), console: { ...console, warn() {} },
     chrome: { storage: { local }, runtime: { onMessage: { addListener(fn) { listener = fn; } } } }
   });
   const start = background.indexOf('chrome.runtime.onMessage.addListener(');
@@ -59,7 +59,7 @@ function load(storage, now = fixtureTimestamp) {
     container.innerHTML = html.split('aria-live="polite">')[1].split('\n      </section>')[0].replace(/<\/div>\s*$/, '');
   } };
   const item = { id: 1, timestamp: now, title: '課中提問', courseName: '課程', author: '老師', url: 'https://e3.nycu.edu.tw/source' };
-  const context = vm.createContext({
+  const context = vm.createContext({ allAssignments: [], E3ExamDetection: require('../exam-detection.js'),
     console, URL, Date: ControlledDate, window: { location: { href: 'https://e3.nycu.edu.tw/' } },
     E3HelperI18n: { language: 'zh-TW' },
     ui: (parts, ...values) => parts.reduce((result, part, i) => result + part + (values[i] ?? ''), ''),

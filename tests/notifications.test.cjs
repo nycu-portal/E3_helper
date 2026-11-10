@@ -472,3 +472,19 @@ test('an event disabled during link persistence is dropped from the daily summar
   assert.equal(app.data.notificationQueue.length, 0);
   assert.equal(app.data.notificationLinks['e3-alert-grading-3'], 'https://e3p.nycu.edu.tw/source');
 });
+
+test('report reminders distinguish presentation/submission and hide date-only placeholder times', async () => {
+  const now = new Date(2026, 9, 1, 22, 59).getTime(), deadline = now + 3600000;
+  const app = load({ notificationSettings: { reminders: [1] }, assignments: [
+    { eventId: 'oral', name: 'Oral report', kind: 'report', reportType: 'presentation', deadline, timeKnown: 'exact' },
+    { eventId: 'written', name: 'Written report', kind: 'report', reportType: 'submission', deadline, timeKnown: 'date-only' },
+    { eventId: 'done', name: 'Completed report', kind: 'report', reportType: 'submission', deadline, manualStatus: 'submitted' }
+  ] }, now);
+  await app.engine.tick();
+  assert.equal(app.desktop.length, 2);
+  const messages = app.desktop.map(([, options]) => options);
+  assert.equal(messages.find(m => m.message.includes('Oral report')).title, '報告即將開始');
+  const submission = messages.find(m => m.message.includes('Written report'));
+  assert.equal(submission.title, '報告即將截止'); assert.match(submission.message, /時間未定/); assert.doesNotMatch(submission.message, /23:59|11:59/);
+  await app.engine.tick(); assert.equal(app.desktop.length, 2);
+});

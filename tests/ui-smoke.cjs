@@ -20,6 +20,7 @@ const fs = require('node:fs');
       await page.goto('https://e3p.nycu.edu.tw/');
       if(localized) await page.addScriptTag({path:path.join(root,'i18n.js')});
       await page.addScriptTag({path:path.join(root,'exam-detection.js')});
+      await page.addScriptTag({path:path.join(root,'report-detection.js')});
       await page.addScriptTag({path:path.join(root,'content.js')});
       await page.locator('.e3-helper-sidebar-toggle').click();
       for(const width of [280,350,480,800]) {
@@ -116,6 +117,7 @@ const fs = require('node:fs');
       await page.reload();
       if(localized) await page.addScriptTag({path:path.join(root,'i18n.js')});
       await page.addScriptTag({path:path.join(root,'exam-detection.js')});
+      await page.addScriptTag({path:path.join(root,'report-detection.js')});
       await page.addScriptTag({path:path.join(root,'content.js')});
       assert.equal(await page.locator('html').getAttribute('data-e3-helper-theme'),'dark');
       assert.equal(await page.locator('.e3-helper-sidebar').evaluate(el => getComputedStyle(el).backgroundColor),'rgb(18, 17, 16)');

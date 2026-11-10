@@ -1,4 +1,4 @@
-importScripts('i18n.js', 'notification-api.js', 'desktop-notifications.js', 'notification-engine.js', 'exam-detection.js', 'all-sites.js');
+importScripts('i18n.js', 'notification-api.js', 'desktop-notifications.js', 'notification-engine.js', 'exam-detection.js', 'report-detection.js', 'all-sites.js');
 const uiText = E3HelperI18n.text;
 const ui = E3HelperI18n.template;
 const E3_ALLOWED_HOSTS = new Set(['e3.nycu.edu.tw', 'e3p.nycu.edu.tw']);
@@ -549,8 +549,8 @@ let examSuggestionQueue = Promise.resolve();
 // Serialize suggestion writes from the worker's scans and every tab's accept/dismiss actions.
 function updateExamSuggestions(mutate) {
   const operation = examSuggestionQueue.then(async () => {
-    const { examSuggestions = [], assignments = [] } = await chrome.storage.local.get(['examSuggestions', 'assignments']);
-    const next = await mutate(examSuggestions, assignments);
+    const { examSuggestions = [], reportSuggestions = [], assignments = [] } = await chrome.storage.local.get(['examSuggestions', 'reportSuggestions', 'assignments']);
+    const next = await mutate(examSuggestions, assignments, reportSuggestions);
     const update = Array.isArray(next) ? { examSuggestions: next } : next;
     await chrome.storage.local.set(update);
     return update.examSuggestions;
@@ -585,6 +585,7 @@ async function scanTimetableExams({ force = false } = {}) {
   const now = Date.now();
   const cache = {};
   const candidates = [];
+  const reports = [];
   const scannedCourses = new Set();
   for (const course of courses) {
     const code = E3ExamDetection.parseCourseCode(course.fullname);
@@ -609,6 +610,7 @@ async function scanTimetableExams({ force = false } = {}) {
     }
     cache[key] = entry;
     scannedCourses.add(String(course.id));
+    reports.push(...E3ReportDetection.detectTimetableReports(entry.rows, { courseId: String(course.id), course: course.fullname, classTime: entry.classTime, url: `https://e3p.nycu.edu.tw/local/courseextension/timetable.php?courseid=${course.id}&scopec=1` }));
     candidates.push(...E3ExamDetection.detectTimetableExams(entry.rows, {
       courseId: String(course.id), course: course.fullname, classTime: entry.classTime,
       url: `https://e3p.nycu.edu.tw/local/courseextension/timetable.php?courseid=${course.id}&scopec=1`
@@ -616,34 +618,40 @@ async function scanTimetableExams({ force = false } = {}) {
   }
   await chrome.storage.local.set({ timetableOutlineCache: cache });
   // A rescanned outline replaces its earlier candidates, so removed exam weeks disappear.
-  return updateExamSuggestions((existing, assignments) => E3ExamDetection.mergeSuggestions(existing, candidates, assignments, now,
-    c => c.source === 'timetable' && scannedCourses.has(String(c.courseId))));
+  return updateExamSuggestions((existing, assignments, reportsStored) => {
+    const replace = c => c.source === 'timetable' && scannedCourses.has(String(c.courseId));
+    return { examSuggestions: E3ExamDetection.mergeSuggestions(existing, candidates, assignments, now, replace), reportSuggestions: E3ReportDetection.mergeSuggestions(reportsStored, reports, assignments, now, replace) };
+  });
 }
 
 async function mergeExamCandidates(candidates, replace) {
   if (!Array.isArray(candidates)) throw new Error('Invalid exam candidates');
   if (candidates.length > 200) throw new Error('Exam batch exceeds 200 candidates; send complete sources in smaller batches');
   const sources = new Set(Array.isArray(replace) ? replace.map(String) : []);
-  return updateExamSuggestions((existing, assignments) => E3ExamDetection.mergeSuggestions(existing, candidates, assignments, Date.now(),
-    c => sources.has(String(c.url))));
+  return updateExamSuggestions((existing, assignments, reports) => ({
+    examSuggestions: E3ExamDetection.mergeSuggestions(existing, candidates.filter(c => c.kind !== 'report'), assignments, Date.now(), c => sources.has(String(c.url))),
+    reportSuggestions: E3ReportDetection.mergeSuggestions(reports, candidates.filter(c => c.kind === 'report'), assignments, Date.now(), c => sources.has(String(c.url)))
+  }));
 }
 
 async function resolveExamSuggestion(id, decision, candidateIndex, fingerprint) {
   if (!['accept', 'dismiss'].includes(decision)) throw new Error('Invalid exam decision');
-  return updateExamSuggestions((existing, assignments) => {
+  return updateExamSuggestions((examsStored, assignments, reportsStored) => {
+    const isReport = String(id).startsWith('report:');
+    const existing = isReport ? reportsStored : examsStored;
     const suggestion = existing.find(item => item.id === id);
     if (!suggestion) throw new Error('Exam suggestion changed; scan again');
     const resolvedFingerprint = E3ExamDetection.fingerprint(suggestion.candidates || []);
     if (fingerprint !== undefined && fingerprint !== E3ExamDetection.selectionFingerprint(suggestion.candidates)) throw new Error('Exam suggestion changed; scan again');
-    const update = { examSuggestions: existing.map(item => item.id === id ? {
+    const update = { [isReport ? 'reportSuggestions' : 'examSuggestions']: existing.map(item => item.id === id ? {
       ...item, state: decision === 'accept' || item.state === 'update' ? 'accepted' : 'dismissed', resolvedFingerprint
     } : item) };
     if (decision === 'accept') {
       const chosen = candidateIndex === undefined ? E3ExamDetection.preferredCandidate(suggestion.candidates)
         : Number.isInteger(candidateIndex) ? suggestion.candidates[candidateIndex] : null;
       if (!chosen) throw new Error('Invalid exam choice');
-      const confirmed = assignments.find(item => E3ExamDetection.isExam(item) && item.examKey === id);
-      const exam = E3ExamDetection.toExamAssignment(suggestion, chosen, confirmed ? { eventId: confirmed.eventId, name: confirmed.name } : {});
+      const confirmed = isReport ? E3ReportDetection.matchingAssignment(assignments, suggestion, chosen) : assignments.find(item => E3ExamDetection.isExam(item) && item.examKey === id);
+      const exam = isReport ? E3ReportDetection.toReportAssignment(suggestion, chosen, confirmed) : E3ExamDetection.toExamAssignment(suggestion, chosen, confirmed ? { eventId: confirmed.eventId, name: confirmed.name } : {});
       update.assignments = confirmed ? assignments.map(item => item === confirmed ? { ...item, ...exam } : item) : [...assignments, exam];
     }
     return update;
@@ -1176,6 +1184,12 @@ async function syncAssignments() {
 
     assignments.forEach(assignment => {
       const oldAssignment = oldAssignmentMap.get(assignment.eventId);
+      if (oldAssignment?.kind === 'report') {
+        for (const key of ['kind', 'reportType', 'reportKey', 'group', 'sources', 'timeKnown', 'endTime', 'manuallyEdited']) {
+          if (Object.prototype.hasOwnProperty.call(oldAssignment, key)) assignment[key] = oldAssignment[key];
+        }
+        if (oldAssignment.manuallyEdited) Object.assign(assignment, { name: oldAssignment.name, course: oldAssignment.course, deadline: oldAssignment.deadline });
+      }
 
       // 合併手動狀態
       if (statuses[assignment.eventId]) {
@@ -1224,7 +1238,7 @@ async function syncAssignments() {
         // 作業不在新列表中，檢查是否應該保留
         const now = Date.now();
         // 考試不在 E3 行事曆中，保留到結束後三天。
-        if (oldAssignment.kind === 'exam') {
+        if (['exam', 'report'].includes(oldAssignment.kind)) {
           return (Number(oldAssignment.endTime) || Number(oldAssignment.deadline)) > now - 3 * 24 * 60 * 60 * 1000;
         }
         const isExpired = oldAssignment.deadline < now;
